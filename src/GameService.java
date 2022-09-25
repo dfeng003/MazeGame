@@ -3,6 +3,8 @@ import java.rmi.Remote;
 import java.rmi.RemoteException;
 
 public interface GameService extends Remote, Serializable {
-    void move(String dir) throws RemoteException;
-    void sayHello() throws RemoteException;
+//    void setGameState(GameState gameState) throws RemoteException;
+    GameState getGameState() throws RemoteException;
+    GameState move(String playerID, int diff) throws RemoteException;
+    GameState updateGameStateNewPlayer(String playerID) throws RemoteException;
 }
