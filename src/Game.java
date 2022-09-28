@@ -16,12 +16,14 @@ public class Game extends UnicastRemoteObject implements GameService{
     private GameState gameState;
     public TrackerService tracker;
     public GameService server;
+    public GameService backupServer;
+    public GameService pingPlayer;  //the player to ping
     public int N;
     public int K;
     public String role;
-    private final String PLAYER = "Normal_Player";
-    private final String PRI_SERVER = "Primary_Server";
-    private final String SEC_SERVER = "Secondary_Server";
+//    private final String PLAYER = "Normal_Player";
+//    private final String PRI_SERVER = "Primary_Server";
+//    private final String SEC_SERVER = "Secondary_Server";
 
     public Game(String trackerIp, int trackerPort, String playerID) throws RemoteException, NotBoundException {
         super();
@@ -38,14 +40,30 @@ public class Game extends UnicastRemoteObject implements GameService{
             gameState = new GameState(N, K);
         }
         gameState.initPlayerState(playerName);
+        if (backupServer != null) {
+            backupServer.setGameState(gameState);
+        }
         return gameState;
+    }
+
+    @Override
+    public void setGameState(GameState gs) throws RemoteException {
+        //server calls backupServer to update its gameState
+        gameState = gs;
+    }
+
+    @Override
+    public void setBackupServer(GameService backup) throws RemoteException {
+        //backup server calls server to update its backupServer
+        backupServer = backup;
     }
 
     @Override
     public GameState move(String playerName, int diff) throws RemoteException {
         // TODO: how to ensure mutual exclusion?
         GameState.PlayerState ps = gameState.getPlayerStates().get(playerName);
-        if ((diff == 0) || //refresh
+        if (gameState.is_occupied(ps.position + diff) ||
+                (diff == 0) || //refresh
                 (diff == -1  && ps.position % gameState.N == 0) || // left
                 (diff == gameState.N && ps.position >= gameState.N*(gameState.N-1)) || // bottom
                 (diff == 1 && ps.position % gameState.N == gameState.N-1) || // right
@@ -57,8 +75,22 @@ public class Game extends UnicastRemoteObject implements GameService{
         if(gameState.getTreasurePositions().contains(ps.position)) {
             gameState.removeTreasures(ps.position);
             ps.score++;
+            gameState.createTreasures();
+        }
+
+        if (backupServer != null) {
+            backupServer.setGameState(gameState);
         }
         return gameState;
+    }
+
+    @Override
+    public void exitGame(String playerName) throws RemoteException {
+        gameState.removePlayer(playerName);
+        tracker.removePlayer(playerName);
+        if (backupServer != null) {
+            backupServer.setGameState(gameState);
+        }
     }
 
     public GameState getGameState(){
@@ -99,16 +131,22 @@ public class Game extends UnicastRemoteObject implements GameService{
             mazeGame.tracker.joinGame(player);
 
             // assign server
-            if (playerList.size() > 0) {
+            if (playerList.size() == 0) {
+                // assign self as server
+                mazeGame.server = mazeGame;
+            } else {
                 // the first in the players list is server
                 mazeGame.server = playerList.get(0).getStub();
-                mazeGame.role = mazeGame.PLAYER;
-                System.out.println("server id: " + playerList.get(0).getPlayerID());
-            } else {
-                // assign self as server
-                mazeGame.role = mazeGame.PRI_SERVER;
-                mazeGame.server = mazeGame;
+                if (playerList.size() == 1){
+                    mazeGame.backupServer = mazeGame;
+                    mazeGame.server.setBackupServer(mazeGame);
+                } else {
+                    mazeGame.backupServer = playerList.get(1).getStub();
+                    System.out.println("server id: " + playerList.get(0).getPlayerID() + " backup server: "+ playerList.get(1).getPlayerID());
+                }
             }
+
+            // contact server to get the updated gameState
             mazeGame.gameState = mazeGame.server.updateGameStateNewPlayer(playerID);
             System.out.println(mazeGame.getGameState().toString());
 
@@ -122,29 +160,30 @@ public class Game extends UnicastRemoteObject implements GameService{
                 String in = input.nextLine();
                 switch (in) {
                     case "0" -> {
-                        mazeGame.gameState = mazeGame.server.move(mazeGame.playerID, 0);
+                        mazeGame.gameState = mazeGame.server.move(playerID, 0);
                         System.out.println(mazeGame.getGameState().toString());
                     }
                     case "1" -> {
-                        mazeGame.gameState = mazeGame.server.move(mazeGame.playerID, -1);
+                        mazeGame.gameState = mazeGame.server.move(playerID, -1);
                         System.out.println(mazeGame.getGameState().toString());
                     }
                     case "2" -> {
-                        mazeGame.gameState = mazeGame.server.move(mazeGame.playerID, mazeGame.N);
+                        mazeGame.gameState = mazeGame.server.move(playerID, mazeGame.N);
                         System.out.println(mazeGame.getGameState().toString());
                     }
                     case "3" -> {
-                        mazeGame.gameState = mazeGame.server.move(mazeGame.playerID, 1);
+                        mazeGame.gameState = mazeGame.server.move(playerID, 1);
                         System.out.println(mazeGame.getGameState().toString());
                     }
                     case "4" -> {
-                        mazeGame.gameState = mazeGame.server.move(mazeGame.playerID, -1*mazeGame.N);
+                        mazeGame.gameState = mazeGame.server.move(playerID, -1*mazeGame.N);
                         System.out.println(mazeGame.getGameState().toString());
                     }
                     case "5" -> {
                         System.out.println(mazeGame.getGameState().toString());
                     }
                     case "9" -> {
+                        mazeGame.server.exitGame(playerID);
                         System.out.println("exit");
                         System.exit(0);
                     }

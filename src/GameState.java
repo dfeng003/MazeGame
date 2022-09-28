@@ -30,6 +30,10 @@ public class GameState implements Serializable  {
 		return playerStates;
 	}
 
+	public void removePlayer(String playerID){
+		playerStates.remove(playerID);
+	}
+
 	@Override
 	public String toString(){
 		StringBuilder sb = new StringBuilder();
@@ -62,6 +66,15 @@ public class GameState implements Serializable  {
 			randomInt = r.nextInt(bound);
 		}
 		return randomInt;
+	}
+
+	public boolean is_occupied(int pos){
+		for (Map.Entry<String, GameState.PlayerState> entry : playerStates.entrySet()) {
+			if(entry.getValue().position == pos){
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static class PlayerState implements Serializable {
