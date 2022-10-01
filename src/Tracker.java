@@ -24,12 +24,12 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Tracker extends UnicastRemoteObject implements TrackerService {
-
 	private static final long serialVersionUID = 6625883990856972736L;
 	private String trackerIP;
 	private String trackerPort;
@@ -45,30 +45,23 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 		this.K = K;
 	}
 
-
 	@Override
-	public Map<String, Object> getInfo() throws RemoteException {
-		Map<String, Object> gameInfo = new HashMap<String, Object>();
+	public Map<String, Object> joinGame(PlayerInfo newPlayer) throws RemoteException {
+		playerList.add(newPlayer);
+		System.out.println(LocalDateTime.now() + "Added to playerList: " + newPlayer.getPlayerID());
 
+		Map<String, Object> gameInfo = new HashMap<String, Object>();
 		gameInfo.put("Players", this.playerList);
 		gameInfo.put("N", this.N);
 		gameInfo.put("K", this.K);
-
 		return gameInfo;
-	}
-
-	@Override
-	public boolean joinGame(PlayerInfo newPlayer) throws RemoteException {
-		playerList.add(newPlayer);
-		System.out.println("Added to playerList: " + playerList.get(playerList.size()-1).getPlayerID());
-		return true;
 	}
 
 	@Override
 	public boolean removePlayer(String playerID) throws RemoteException {
 		boolean status = false;
 
-		System.err.println("removing player from tracker: " + playerID);
+		System.out.println(LocalDateTime.now() + "removing player from tracker: " + playerID);
 
 		for(PlayerInfo pInfo : playerList) {
 			if(pInfo.getPlayerID().equals(playerID)) {
@@ -82,16 +75,18 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 
 	@Override
 	public PlayerInfo handleCrashedPlayer(String playerID) throws RemoteException {
-		System.err.println("removing crashed player from tracker: " + playerID);
+		System.out.println(LocalDateTime.now() + "removing crashed player from tracker: " + playerID);
 		for (int i = 0; i < playerList.size(); i ++) {
 			if (playerList.get(i).getPlayerID().equals(playerID)){
 				playerList.remove(i);
 				if (i == 0){
+					// server crashed, reassign both server and backup server, since backup server is the new server
 					GameService newServer = playerList.get(0).getStub();
 					newServer.setRole(Game.PRI_SERVER);
 					reassignServer(newServer, Game.PRI_SERVER);
-					return playerList.get(playerList.size()-1);
-				} else if ( i == 1 ){
+				}
+				if ( i <= 1 ){
+					// server or backup server crashed
 					GameService newBackup = null;
 					if (playerList.size() >= 2) {
 						newBackup = playerList.get(1).getStub();
@@ -99,8 +94,11 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 					}
 					reassignServer(newBackup, Game.SEC_SERVER);
 				}
+
 				if (playerList.size() == 1){
 					return null;
+				} else if ( i == 0){
+					return playerList.get(playerList.size()-1);
 				} else {
 					return playerList.get(i-1);
 				}
@@ -110,7 +108,7 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 	}
 
 	private void reassignServer(GameService server, String role) throws RemoteException{
-		System.out.println("reassigning " + role);
+		System.out.println(LocalDateTime.now() + "reassigning " + role);
 		for(PlayerInfo pInfo : playerList) {
 			if(role.equals(Game.PRI_SERVER)) {
 				pInfo.getStub().setServer(server);

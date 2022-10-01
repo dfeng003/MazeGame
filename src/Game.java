@@ -1,17 +1,16 @@
-import java.beans.PropertyChangeSupport;
-import java.net.InetAddress;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
+import java.time.LocalDateTime;
 
 public class Game extends UnicastRemoteObject implements GameService{
     private static final long serialVersionUID = -3671463448485643888L;
 
-    private String trackerIp;
-    private int trackerPort;
+//    private String trackerIp;
+//    private int trackerPort;
     private final String playerID;
     private GameState gameState;
     public TrackerService tracker;
@@ -27,24 +26,24 @@ public class Game extends UnicastRemoteObject implements GameService{
 
     public Game(String trackerIp, int trackerPort, String playerID) throws RemoteException, NotBoundException {
         super();
-        this.trackerIp = trackerIp;
-        this.trackerPort = trackerPort;
+//        this.trackerIp = trackerIp;
+//        this.trackerPort = trackerPort;
         this.playerID = playerID;
         Registry registry = LocateRegistry.getRegistry(trackerIp, trackerPort);
         this.tracker = (TrackerService) registry.lookup("Tracker");
     }
 
     @Override
-    public GameState updateGameStateNewPlayer(String playerName, String role, PlayerInfo info) throws RemoteException {
+    public GameState updateGameStateNewPlayer(String playerName, String playerRole, PlayerInfo info) throws RemoteException {
         if (gameState == null) {
             gameState = new GameState(N, K);
         }
         gameState.initPlayerState(playerName);
-        if (backupServer != null && !role.equals(SEC_SERVER)) {
+        if (backupServer != null && !playerRole.equals(SEC_SERVER) && !role.equals(SEC_SERVER)) {
             backupServer.setGameState(gameState);
         }
         // server pings the last player that joins -> forms the heartbeat ring
-        if (!playerID.equals(playerName)){ pingPlayer = info;}
+        if (role.equals(PRI_SERVER) && !playerID.equals(playerName)){ pingPlayer = info;}
         return gameState;
     }
 
@@ -120,6 +119,15 @@ public class Game extends UnicastRemoteObject implements GameService{
         return newPing;
     }
 
+    public GameState callServerMove(String playerName, int diff, String role) throws RemoteException {
+        System.out.println(LocalDateTime.now() + "moving " + diff);
+        try{
+            return this.server.move(playerName, diff, role);
+        } catch (RemoteException e) {
+            return this.backupServer.move(playerName, diff, role);
+        }
+    }
+
     public GameState getGameState(){
         return this.gameState;
     }
@@ -145,56 +153,64 @@ public class Game extends UnicastRemoteObject implements GameService{
 
         try {
             Game mazeGame = new Game(trackerIp, trackerPort, playerID);
-            // contact tracker to get N, K, players list
-            info = mazeGame.tracker.getInfo();
+            // join game by adding self to the tracker's player list, and get N, K, players list
+            PlayerInfo player = new PlayerInfo(playerID, mazeGame);
+            System.out.println(LocalDateTime.now() + "joining game");
+            info = mazeGame.tracker.joinGame(player);
             mazeGame.K = (Integer)info.get("K");
             mazeGame.N = (Integer)info.get("N");
             playerList = (ArrayList<PlayerInfo>) info.get("Players");
-            System.out.println("extracted information from Tracker " + mazeGame.N + " " + mazeGame.K);
-
-            // join game by adding self to the tracker's player list
-            PlayerInfo player = new PlayerInfo(playerID, mazeGame);
-            System.out.println("Joining game: " + player.toString());
-            mazeGame.tracker.joinGame(player);
+            System.out.println(LocalDateTime.now() + "extracted information from Tracker " + mazeGame.N + " " + mazeGame.K);
 
             // assign server
-            if (playerList.size() == 0) {
+            if (playerList.size() == 1) {
                 // assign self as server
                 mazeGame.server = mazeGame;
                 mazeGame.role = Game.PRI_SERVER;
             } else {
                 // the first in the players list is server
                 mazeGame.server = playerList.get(0).getStub();
-                if (playerList.size() == 1){
+                if (playerList.size() == 2){
                     mazeGame.backupServer = mazeGame;
                     mazeGame.role = Game.SEC_SERVER;
                     mazeGame.server.setBackupServer(mazeGame);
                 } else {
                     mazeGame.backupServer = playerList.get(1).getStub();
                     mazeGame.role = Game.PLAYER;
-                    System.out.println("server id: " + playerList.get(0).getPlayerID() + " backup server: "+ playerList.get(1).getPlayerID());
+                    System.out.println(LocalDateTime.now() + "server id: " + playerList.get(0).getPlayerID() + " backup server: "+ playerList.get(1).getPlayerID());
                 }
-                mazeGame.pingPlayer = playerList.get(playerList.size()-1);
+                mazeGame.pingPlayer = playerList.get(playerList.size()-2);
             }
 
             // contact server to get the updated gameState
-            mazeGame.gameState = mazeGame.server.updateGameStateNewPlayer(playerID, mazeGame.role, player);
-            System.out.println(mazeGame.getGameState().toString());
+            try {
+                mazeGame.gameState = mazeGame.server.updateGameStateNewPlayer(playerID, mazeGame.role, player);
+            } catch (RemoteException e) {
+                mazeGame.gameState = mazeGame.backupServer.updateGameStateNewPlayer(playerID, mazeGame.role, player);
+            }
+            System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
 
             // heartbeat ping
             Thread heartbeatThread = new Thread(() -> {
                 while (true) {
                     try{
                         if (mazeGame.pingPlayer != null){
-                            System.out.println("pinging "+ mazeGame.pingPlayer.getPlayerID());
+                            System.out.println(LocalDateTime.now() + "pinging "+ mazeGame.pingPlayer.getPlayerID());
                             mazeGame.pingPlayer.getStub().ping();
                         }
                     } catch (RemoteException e){
                         // The player it pings has crashed
-                        System.out.println("player crashed");
                         String name = mazeGame.pingPlayer.getPlayerID();
+                        System.out.println(LocalDateTime.now() + "player crashed " + name);
                         try {
-                            mazeGame.pingPlayer = mazeGame.server.handleCrashedPlayer(name);
+                            if (mazeGame.role.equals(Game.SEC_SERVER)){
+                                // if self is backup Server, means the primary server crashed
+                                System.out.println(LocalDateTime.now() + "self handle crash, i'm backup server");
+                                mazeGame.pingPlayer = mazeGame.handleCrashedPlayer(name);
+                            } else {
+                                System.out.println(LocalDateTime.now() + "call server to handle crash");
+                                mazeGame.pingPlayer = mazeGame.server.handleCrashedPlayer(name);
+                            }
                         } catch (RemoteException remoteException) {
                             remoteException.printStackTrace();
                         }
@@ -210,7 +226,7 @@ public class Game extends UnicastRemoteObject implements GameService{
             heartbeatThread.start();
 
             System.out.println("========================  Instructions ======================== ");
-            System.out.println("5 to print game state \n                                                     4  \n0 to refresh, 9 to exit. Directional controls are: 1   3\n                                                     2  ");
+            System.out.println("5 to print game state \n6 to print role \n                                                     4  \n0 to refresh, 9 to exit. Directional controls are: 1   3\n                                                     2  ");
 
             // Start Game
             Scanner input = new Scanner(System.in);
@@ -218,27 +234,30 @@ public class Game extends UnicastRemoteObject implements GameService{
                 String in = input.nextLine();
                 switch (in) {
                     case "0" -> {
-                        mazeGame.gameState = mazeGame.server.move(playerID, 0, mazeGame.role);
-                        System.out.println(mazeGame.getGameState().toString());
+                        mazeGame.gameState = mazeGame.callServerMove(playerID, 0, mazeGame.role);
+                        System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "1" -> {
-                        mazeGame.gameState = mazeGame.server.move(playerID, -1, mazeGame.role);
-                        System.out.println(mazeGame.getGameState().toString());
+                        mazeGame.gameState = mazeGame.callServerMove(playerID, -1, mazeGame.role);
+                        System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "2" -> {
-                        mazeGame.gameState = mazeGame.server.move(playerID, mazeGame.N, mazeGame.role);
-                        System.out.println(mazeGame.getGameState().toString());
+                        mazeGame.gameState = mazeGame.callServerMove(playerID, mazeGame.N, mazeGame.role);
+                        System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "3" -> {
-                        mazeGame.gameState = mazeGame.server.move(playerID, 1, mazeGame.role);
-                        System.out.println(mazeGame.getGameState().toString());
+                        mazeGame.gameState = mazeGame.callServerMove(playerID, 1, mazeGame.role);
+                        System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "4" -> {
-                        mazeGame.gameState = mazeGame.server.move(playerID, -1*mazeGame.N, mazeGame.role);
-                        System.out.println(mazeGame.getGameState().toString());
+                        mazeGame.gameState = mazeGame.callServerMove(playerID, -1*mazeGame.N, mazeGame.role);
+                        System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "5" -> {
                         System.out.println(mazeGame.getGameState().toString());
+                    }
+                    case "6" -> {
+                        System.out.println(mazeGame.role);
                     }
                     case "9" -> {
                         mazeGame.server.exitGame(playerID, mazeGame.role);
