@@ -8,8 +8,8 @@ public interface GameService extends Remote, Serializable {
     GameState move(String playerID, int diff, String role) throws RemoteException;
     GameState updateGameStateNewPlayer(String playerID, String role, PlayerInfo player) throws RemoteException;
     void setGameState(GameState gs) throws RemoteException;
-    void setServer(GameService server) throws RemoteException;
-    void setBackupServer(GameService backup) throws RemoteException;
+    void setServer(GameService server, String name) throws RemoteException;
+    void setBackupServer(GameService backup, String name) throws RemoteException;
     void setRole (String newRole) throws RemoteException;
     boolean ping() throws RemoteException;
     PlayerInfo handleCrashedPlayer(String playerName) throws RemoteException;

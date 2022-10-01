@@ -54,18 +54,21 @@ public class Game extends UnicastRemoteObject implements GameService{
     }
 
     @Override
-    public void setServer(GameService priServer) throws RemoteException {
+    public void setServer(GameService priServer, String name) throws RemoteException {
+        System.out.println(LocalDateTime.now() + " reassigned server " + name);
         server = priServer;
     }
 
     @Override
-    public void setBackupServer(GameService backup) throws RemoteException {
+    public void setBackupServer(GameService backup, String name) throws RemoteException {
         //backup server calls server to update its backupServer
+        System.out.println(LocalDateTime.now() + " reassigned backup server " + name);
         backupServer = backup;
     }
 
     @Override
     public void setRole(String newRole) throws RemoteException {
+        System.out.println(LocalDateTime.now() + " set as  " + newRole);
         role = newRole;
     }
 
@@ -77,6 +80,7 @@ public class Game extends UnicastRemoteObject implements GameService{
     @Override
     public GameState move(String playerName, int diff, String role) throws RemoteException {
         // TODO: how to ensure mutual exclusion?
+        System.out.println(LocalDateTime.now() + "moving " + playerName + " " + diff);
         GameState.PlayerState ps = gameState.getPlayerStates().get(playerName);
         if (gameState.is_occupied(ps.position + diff) ||
                 (diff == 0) || //refresh
@@ -84,19 +88,23 @@ public class Game extends UnicastRemoteObject implements GameService{
                 (diff == gameState.N && ps.position >= gameState.N*(gameState.N-1)) || // bottom
                 (diff == 1 && ps.position % gameState.N == gameState.N-1) || // right
                 (diff == -gameState.N && ps.position < gameState.N)) {  // top
+            System.out.println(LocalDateTime.now() + "did not move");
             return gameState;
         }
         ps.position += diff;
 
         if(gameState.getTreasurePositions().contains(ps.position)) {
+            System.out.println(LocalDateTime.now() + " collect treature");
             gameState.removeTreasures(ps.position);
             ps.score++;
             gameState.createTreasures();
         }
 
         if (backupServer != null && !role.equals(SEC_SERVER)) {
+            System.out.println(LocalDateTime.now() + " update backup server");
             backupServer.setGameState(gameState);
         }
+        System.out.println(LocalDateTime.now() + " return gamestate");
         return gameState;
     }
 
@@ -163,23 +171,34 @@ public class Game extends UnicastRemoteObject implements GameService{
             System.out.println(LocalDateTime.now() + "extracted information from Tracker " + mazeGame.N + " " + mazeGame.K);
 
             // assign server
-            if (playerList.size() == 1) {
-                // assign self as server
-                mazeGame.server = mazeGame;
-                mazeGame.role = Game.PRI_SERVER;
-            } else {
-                // the first in the players list is server
-                mazeGame.server = playerList.get(0).getStub();
-                if (playerList.size() == 2){
+            if (mazeGame.server == null) {
+                if (playerList.size() == 1) {
+                    // assign self as server
+                    mazeGame.server = mazeGame;
+                    mazeGame.role = Game.PRI_SERVER;
+                } else {
+                    // the first in the players list is server
+                    mazeGame.server = playerList.get(0).getStub();
+                }
+            }
+
+            if (mazeGame.backupServer == null && playerList.size() > 1) {
+                if (playerList.size() == 2) {
                     mazeGame.backupServer = mazeGame;
                     mazeGame.role = Game.SEC_SERVER;
-                    mazeGame.server.setBackupServer(mazeGame);
+                    mazeGame.server.setBackupServer(mazeGame, playerID);
                 } else {
                     mazeGame.backupServer = playerList.get(1).getStub();
-                    mazeGame.role = Game.PLAYER;
-                    System.out.println(LocalDateTime.now() + "server id: " + playerList.get(0).getPlayerID() + " backup server: "+ playerList.get(1).getPlayerID());
+                    System.out.println(LocalDateTime.now() + "server id: " + playerList.get(0).getPlayerID() + " backup server: " + playerList.get(1).getPlayerID());
                 }
-                mazeGame.pingPlayer = playerList.get(playerList.size()-2);
+            }
+
+            if (mazeGame.role == null){
+                mazeGame.role = Game.PLAYER;
+            }
+
+            if (playerList.size() > 1) {
+                mazeGame.pingPlayer = playerList.get(playerList.size() - 2);
             }
 
             // contact server to get the updated gameState
@@ -195,7 +214,7 @@ public class Game extends UnicastRemoteObject implements GameService{
                 while (true) {
                     try{
                         if (mazeGame.pingPlayer != null){
-                            System.out.println(LocalDateTime.now() + "pinging "+ mazeGame.pingPlayer.getPlayerID());
+//                            System.out.println(LocalDateTime.now() + "pinging "+ mazeGame.pingPlayer.getPlayerID());
                             mazeGame.pingPlayer.getStub().ping();
                         }
                     } catch (RemoteException e){
@@ -203,6 +222,7 @@ public class Game extends UnicastRemoteObject implements GameService{
                         String name = mazeGame.pingPlayer.getPlayerID();
                         System.out.println(LocalDateTime.now() + "player crashed " + name);
                         try {
+                            System.out.println(LocalDateTime.now() + "role " + mazeGame.role);
                             if (mazeGame.role.equals(Game.SEC_SERVER)){
                                 // if self is backup Server, means the primary server crashed
                                 System.out.println(LocalDateTime.now() + "self handle crash, i'm backup server");
