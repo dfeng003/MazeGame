@@ -68,7 +68,7 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 	public boolean removePlayer(String playerID) throws RemoteException {
 		boolean status = false;
 
-		System.err.println("remove player from tracker: " + playerID);
+		System.err.println("removing player from tracker: " + playerID);
 
 		for(PlayerInfo pInfo : playerList) {
 			if(pInfo.getPlayerID().equals(playerID)) {
@@ -78,6 +78,46 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 			}
 		}
 		return status;
+	}
+
+	@Override
+	public PlayerInfo handleCrashedPlayer(String playerID) throws RemoteException {
+		System.err.println("removing crashed player from tracker: " + playerID);
+		for (int i = 0; i < playerList.size(); i ++) {
+			if (playerList.get(i).getPlayerID().equals(playerID)){
+				playerList.remove(i);
+				if (i == 0){
+					GameService newServer = playerList.get(0).getStub();
+					newServer.setRole(Game.PRI_SERVER);
+					reassignServer(newServer, Game.PRI_SERVER);
+					return playerList.get(playerList.size()-1);
+				} else if ( i == 1 ){
+					GameService newBackup = null;
+					if (playerList.size() >= 2) {
+						newBackup = playerList.get(1).getStub();
+						newBackup.setRole(Game.SEC_SERVER);
+					}
+					reassignServer(newBackup, Game.SEC_SERVER);
+				}
+				if (playerList.size() == 1){
+					return null;
+				} else {
+					return playerList.get(i-1);
+				}
+			}
+		}
+		return null;
+	}
+
+	private void reassignServer(GameService server, String role) throws RemoteException{
+		System.out.println("reassigning " + role);
+		for(PlayerInfo pInfo : playerList) {
+			if(role.equals(Game.PRI_SERVER)) {
+				pInfo.getStub().setServer(server);
+			} else {
+				pInfo.getStub().setBackupServer(server);
+			}
+		}
 	}
 
 	public static void main(String[] args) {
