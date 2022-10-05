@@ -1,3 +1,4 @@
+import java.beans.PropertyChangeSupport;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -23,6 +24,8 @@ public class Game extends UnicastRemoteObject implements GameService{
     static final String PLAYER = "Normal_Player";
     static final String PRI_SERVER = "Primary_Server";
     static final String SEC_SERVER = "Secondary_Server";
+    private GUI gui;
+    private PropertyChangeSupport observable;
 
     public Game(String trackerIp, int trackerPort, String playerID) throws RemoteException, NotBoundException {
         super();
@@ -33,12 +36,26 @@ public class Game extends UnicastRemoteObject implements GameService{
         this.tracker = (TrackerService) registry.lookup("Tracker");
     }
 
+    private void initGui(){
+        gui = new GUI(gameState, playerID);
+        observable = new PropertyChangeSupport(this);
+        observable.addPropertyChangeListener(gui);
+    }
+
+    private void updateGameState(){
+        if (observable != null) {
+            observable.firePropertyChange("gameState", null, gameState);
+        }
+    }
+
     @Override
     public GameState updateGameStateNewPlayer(String playerName, String playerRole, PlayerInfo info) throws RemoteException {
         if (gameState == null) {
             gameState = new GameState(N, K);
+            initGui();
         }
         gameState.initPlayerState(playerName);
+        updateGameState();
         if (backupServer != null && !playerRole.equals(SEC_SERVER) && !role.equals(SEC_SERVER)) {
             backupServer.setGameState(gameState);
         }
@@ -51,18 +68,19 @@ public class Game extends UnicastRemoteObject implements GameService{
     public void setGameState(GameState gs) throws RemoteException {
         //server calls backupServer to update its gameState
         gameState = gs;
+        updateGameState();
     }
 
     @Override
     public void setServer(GameService priServer, String name) throws RemoteException {
-        System.out.println(LocalDateTime.now() + " reassigned server " + name);
+        System.out.println(LocalDateTime.now() + " assigned server " + name);
         server = priServer;
     }
 
     @Override
     public void setBackupServer(GameService backup, String name) throws RemoteException {
         //backup server calls server to update its backupServer
-        System.out.println(LocalDateTime.now() + " reassigned backup server " + name);
+        System.out.println(LocalDateTime.now() + " assigned backup server " + name);
         backupServer = backup;
     }
 
@@ -79,7 +97,6 @@ public class Game extends UnicastRemoteObject implements GameService{
 
     @Override
     public GameState move(String playerName, int diff, String role) throws RemoteException {
-        // TODO: how to ensure mutual exclusion?
         System.out.println(LocalDateTime.now() + "moving " + playerName + " " + diff);
         GameState.PlayerState ps = gameState.getPlayerStates().get(playerName);
         if (gameState.is_occupied(ps.position + diff) ||
@@ -88,29 +105,31 @@ public class Game extends UnicastRemoteObject implements GameService{
                 (diff == gameState.N && ps.position >= gameState.N*(gameState.N-1)) || // bottom
                 (diff == 1 && ps.position % gameState.N == gameState.N-1) || // right
                 (diff == -gameState.N && ps.position < gameState.N)) {  // top
-            System.out.println(LocalDateTime.now() + "did not move");
+//            System.out.println(LocalDateTime.now() + "did not move");
             return gameState;
         }
         ps.position += diff;
 
         if(gameState.getTreasurePositions().contains(ps.position)) {
-            System.out.println(LocalDateTime.now() + " collect treature");
+//            System.out.println(LocalDateTime.now() + " collect treature");
             gameState.removeTreasures(ps.position);
             ps.score++;
             gameState.createTreasures();
         }
+        updateGameState();
 
         if (backupServer != null && !role.equals(SEC_SERVER)) {
-            System.out.println(LocalDateTime.now() + " update backup server");
+//            System.out.println(LocalDateTime.now() + " update backup server");
             backupServer.setGameState(gameState);
         }
-        System.out.println(LocalDateTime.now() + " return gamestate");
+//        System.out.println(LocalDateTime.now() + " return gamestate");
         return gameState;
     }
 
     @Override
     public void exitGame(String playerName, String role) throws RemoteException {
         gameState.removePlayer(playerName);
+        updateGameState();
         tracker.removePlayer(playerName);
         if (backupServer != null && !role.equals(SEC_SERVER)) {
             backupServer.setGameState(gameState);
@@ -120,6 +139,7 @@ public class Game extends UnicastRemoteObject implements GameService{
     @Override
     public PlayerInfo handleCrashedPlayer(String playerName) throws RemoteException {
         gameState.removePlayer(playerName);
+        updateGameState();
         PlayerInfo newPing = tracker.handleCrashedPlayer(playerName);
         if (backupServer != null) {
             backupServer.setGameState(gameState);
@@ -207,6 +227,7 @@ public class Game extends UnicastRemoteObject implements GameService{
             } catch (RemoteException e) {
                 mazeGame.gameState = mazeGame.backupServer.updateGameStateNewPlayer(playerID, mazeGame.role, player);
             }
+            mazeGame.initGui();
             System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
 
             // heartbeat ping
@@ -255,22 +276,27 @@ public class Game extends UnicastRemoteObject implements GameService{
                 switch (in) {
                     case "0" -> {
                         mazeGame.gameState = mazeGame.callServerMove(playerID, 0, mazeGame.role);
+                        mazeGame.updateGameState();
                         System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "1" -> {
                         mazeGame.gameState = mazeGame.callServerMove(playerID, -1, mazeGame.role);
+                        mazeGame.updateGameState();
                         System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "2" -> {
                         mazeGame.gameState = mazeGame.callServerMove(playerID, mazeGame.N, mazeGame.role);
+                        mazeGame.updateGameState();
                         System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "3" -> {
                         mazeGame.gameState = mazeGame.callServerMove(playerID, 1, mazeGame.role);
+                        mazeGame.updateGameState();
                         System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "4" -> {
                         mazeGame.gameState = mazeGame.callServerMove(playerID, -1*mazeGame.N, mazeGame.role);
+                        mazeGame.updateGameState();
                         System.out.println(LocalDateTime.now() + mazeGame.getGameState().toString());
                     }
                     case "5" -> {
