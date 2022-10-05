@@ -37,6 +37,7 @@ public class Game extends UnicastRemoteObject implements GameService{
     }
 
     private void initGui(){
+//        System.out.println(LocalDateTime.now() + " init GUI");
         gui = new GUI(gameState, playerID);
         observable = new PropertyChangeSupport(this);
         observable.addPropertyChangeListener(gui);
@@ -52,7 +53,6 @@ public class Game extends UnicastRemoteObject implements GameService{
     public GameState updateGameStateNewPlayer(String playerName, String playerRole, PlayerInfo info) throws RemoteException {
         if (gameState == null) {
             gameState = new GameState(N, K);
-            initGui();
         }
         gameState.initPlayerState(playerName);
         updateGameState();
@@ -212,6 +212,7 @@ public class Game extends UnicastRemoteObject implements GameService{
                     System.out.println(LocalDateTime.now() + "server id: " + playerList.get(0).getPlayerID() + " backup server: " + playerList.get(1).getPlayerID());
                 }
             }
+            System.out.println(LocalDateTime.now() + " finished assigning servers ");
 
             if (mazeGame.role == null){
                 mazeGame.role = Game.PLAYER;
