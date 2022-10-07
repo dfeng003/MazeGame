@@ -10,8 +10,6 @@ import java.time.LocalDateTime;
 public class Game extends UnicastRemoteObject implements GameService{
     private static final long serialVersionUID = -3671463448485643888L;
 
-//    private String trackerIp;
-//    private int trackerPort;
     private final String playerID;
     private GameState gameState;
     public TrackerService tracker;
@@ -29,8 +27,6 @@ public class Game extends UnicastRemoteObject implements GameService{
 
     public Game(String trackerIp, int trackerPort, String playerID) throws RemoteException, NotBoundException {
         super();
-//        this.trackerIp = trackerIp;
-//        this.trackerPort = trackerPort;
         this.playerID = playerID;
         Registry registry = LocateRegistry.getRegistry(trackerIp, trackerPort);
         this.tracker = (TrackerService) registry.lookup("Tracker");
@@ -55,6 +51,13 @@ public class Game extends UnicastRemoteObject implements GameService{
             gameState = new GameState(N, K);
         }
         gameState.initPlayerState(playerName);
+
+        if (playerRole.equals(PRI_SERVER)){
+            gameState.setServerName(playerName);
+        } else if (playerRole.equals(SEC_SERVER)){
+            gameState.setBackupName(playerName);
+        }
+
         updateGameState();
         if (backupServer != null && !playerRole.equals(SEC_SERVER) && !role.equals(SEC_SERVER)) {
             backupServer.setGameState(gameState);
@@ -75,6 +78,10 @@ public class Game extends UnicastRemoteObject implements GameService{
     public void setServer(GameService priServer, String name) throws RemoteException {
         System.out.println(LocalDateTime.now() + " assigned server " + name);
         server = priServer;
+        if (gameState != null){
+            gameState.setServerName(name);
+            updateGameState();
+        }
     }
 
     @Override
@@ -82,6 +89,10 @@ public class Game extends UnicastRemoteObject implements GameService{
         //backup server calls server to update its backupServer
         System.out.println(LocalDateTime.now() + " assigned backup server " + name);
         backupServer = backup;
+        if (gameState != null) {
+            gameState.setBackupName(name);
+            updateGameState();
+        }
     }
 
     @Override
@@ -185,10 +196,10 @@ public class Game extends UnicastRemoteObject implements GameService{
             PlayerInfo player = new PlayerInfo(playerID, mazeGame);
             System.out.println(LocalDateTime.now() + "joining game");
             info = mazeGame.tracker.joinGame(player);
+            System.out.println(LocalDateTime.now() + "joined game");
             mazeGame.K = (Integer)info.get("K");
             mazeGame.N = (Integer)info.get("N");
             playerList = (ArrayList<PlayerInfo>) info.get("Players");
-            System.out.println(LocalDateTime.now() + "extracted information from Tracker " + mazeGame.N + " " + mazeGame.K);
 
             // assign server
             if (mazeGame.server == null) {

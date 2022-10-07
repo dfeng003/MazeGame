@@ -7,12 +7,22 @@ public class GameState implements Serializable  {
 	public final int K;
 	private Set<Integer> treasurePositions = new HashSet<>();
 	private Map<String, PlayerState> playerStates = new HashMap<>();
+	private String serverName = "";
+	private String backupName = "";
 
 	public GameState(int N, int K) {
 		this.N = N;
 		this.K = K;
 		createTreasures();
 	}
+
+	public void setServerName(String name){ serverName = name;}
+
+	public String getServerName(){ return serverName;}
+
+	public void setBackupName(String name){ backupName = name;}
+
+	public String getBackupName(){ return backupName;}
 
 	public void initPlayerState(String playerName) {
 		playerStates.put(playerName, new PlayerState(randValidPosition()));

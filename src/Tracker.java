@@ -79,12 +79,15 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 		for (int i = 0; i < playerList.size(); i ++) {
 			if (playerList.get(i).getPlayerID().equals(playerID)){
 				playerList.remove(i);
+				System.out.println(playerList.size());
 				if (i == 0){
 					// server crashed, reassign both server and backup server, since backup server is the new server
 					GameService newServer = playerList.get(0).getStub();
 					newServer.setRole(Game.PRI_SERVER);
 					reassignServer(newServer, Game.PRI_SERVER, playerList.get(0).getPlayerID());
 				}
+				System.out.println("after assining prim");
+
 				if ( i <= 1 ){
 					// server or backup server crashed
 					GameService newBackup = null;
@@ -112,6 +115,7 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 	private void reassignServer(GameService server, String role, String name) throws RemoteException{
 		System.out.println(LocalDateTime.now() + "reassigning " + role + " "+ name);
 		for(PlayerInfo pInfo : playerList) {
+			System.out.println("setting server");
 			if(role.equals(Game.PRI_SERVER)) {
 				pInfo.getStub().setServer(server, name);
 			} else {

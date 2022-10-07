@@ -11,14 +11,21 @@ public class GUI extends JFrame implements PropertyChangeListener {
     private String playerName;
     private JLabel[][] mapGrids;
     private JLabel infoLabel;
+    private JLabel serverLabel;
     private GameState gameState;
 
     private void updateInfoLabel(){
         StringBuilder sb = new StringBuilder("Scores for ");
         for (Map.Entry<String, GameState.PlayerState> entry : gameState.getPlayerStates().entrySet()) {
-            sb.append(entry.getKey()).append(" : ").append(entry.getValue().score);
+            sb.append(entry.getKey()).append(" : ").append(entry.getValue().score).append("  ");
         }
     	infoLabel.setText(sb.toString());
+    }
+
+    private void updateServerLabel(){
+        StringBuilder sb = new StringBuilder("Servers ");
+        sb.append("Primary: ").append(gameState.getServerName()).append(" Secondary: ").append(gameState.getBackupName());
+        serverLabel.setText(sb.toString());
     }
 
     private void updateMapGrids() {
@@ -55,13 +62,20 @@ public class GUI extends JFrame implements PropertyChangeListener {
         this.playerName = playerName;
         this.gameState = gameState;
 
-        // Info
-        Panel legend = new Panel(new FlowLayout());
+        // Player Info
+        Panel legend = new Panel(new GridLayout(2, 1));
         infoLabel = new JLabel();
         updateInfoLabel();
         infoLabel.setBorder(BorderFactory.createLineBorder(Color.black));
         infoLabel.setSize(400, 768);
         legend.add(infoLabel);
+
+        // Server Info
+        serverLabel = new JLabel();
+        updateServerLabel();
+        serverLabel.setBorder(BorderFactory.createLineBorder(Color.black));
+        serverLabel.setSize(400, 768);
+        legend.add(serverLabel);
 
         // Map
         Panel map = new Panel(new GridLayout(rows, cols));
@@ -93,6 +107,7 @@ public class GUI extends JFrame implements PropertyChangeListener {
     public void propertyChange(PropertyChangeEvent event) {
         gameState = (GameState) event.getNewValue();
         updateInfoLabel();
+        updateServerLabel();
         updateMapGrids();
     }
 }
