@@ -33,7 +33,7 @@ public class Game extends UnicastRemoteObject implements GameService{
     }
 
     private void initGui(){
-//        System.out.println(LocalDateTime.now() + " init GUI");
+        System.out.println(LocalDateTime.now() + " init GUI");
         gui = new GUI(gameState, playerID);
         observable = new PropertyChangeSupport(this);
         observable.addPropertyChangeListener(gui);
@@ -61,6 +61,7 @@ public class Game extends UnicastRemoteObject implements GameService{
         updateGameState();
         if (backupServer != null && !playerRole.equals(SEC_SERVER) && !role.equals(SEC_SERVER)) {
             backupServer.setGameState(gameState);
+            System.out.println(LocalDateTime.now() + " updated backup");
         }
         // server pings the last player that joins -> forms the heartbeat ring
         if (role.equals(PRI_SERVER) && !playerID.equals(playerName)){ pingPlayer = info;}
@@ -70,6 +71,7 @@ public class Game extends UnicastRemoteObject implements GameService{
     @Override
     public void setGameState(GameState gs) throws RemoteException {
         //server calls backupServer to update its gameState
+        System.out.println(LocalDateTime.now() + " updated game state");
         gameState = gs;
         updateGameState();
     }
@@ -141,7 +143,7 @@ public class Game extends UnicastRemoteObject implements GameService{
     public void exitGame(String playerName, String role) throws RemoteException {
         gameState.removePlayer(playerName);
         updateGameState();
-        tracker.removePlayer(playerName);
+        tracker.handleCrashedPlayer(playerName);
         if (backupServer != null && !role.equals(SEC_SERVER)) {
             backupServer.setGameState(gameState);
         }
@@ -181,7 +183,7 @@ public class Game extends UnicastRemoteObject implements GameService{
 
 
         if (args.length < 3) {
-            System.err.println("One or more command line options missing");
+            System.err.println("Arguments missing");
             System.err.println("Usage:" + "\n" + "java Game <trackerIP> <trackerPort> <playerID>");
             System.exit(0);
         } else {
@@ -318,7 +320,11 @@ public class Game extends UnicastRemoteObject implements GameService{
                         System.out.println(mazeGame.role);
                     }
                     case "9" -> {
-                        mazeGame.server.exitGame(playerID, mazeGame.role);
+                        try{
+                            mazeGame.server.exitGame(playerID, mazeGame.role);
+                        } catch (RemoteException e) {
+                            mazeGame.backupServer.exitGame(playerID, mazeGame.role);
+                        }
                         System.out.println("exit");
                         System.exit(0);
                     }

@@ -9,17 +9,17 @@ import java.util.Map;
 
 public class GUI extends JFrame implements PropertyChangeListener {
     private String playerName;
-    private JLabel[][] mapGrids;
-    private JLabel infoLabel;
+    private JLabel[][] grids;
+    private JLabel playerLabel;
     private JLabel serverLabel;
     private GameState gameState;
 
-    private void updateInfoLabel(){
-        StringBuilder sb = new StringBuilder("Scores for ");
+    private void updateplayerLabel(){
+        StringBuilder sb = new StringBuilder("Scores  ");
         for (Map.Entry<String, GameState.PlayerState> entry : gameState.getPlayerStates().entrySet()) {
             sb.append(entry.getKey()).append(" : ").append(entry.getValue().score).append("  ");
         }
-    	infoLabel.setText(sb.toString());
+    	playerLabel.setText(sb.toString());
     }
 
     private void updateServerLabel(){
@@ -29,28 +29,28 @@ public class GUI extends JFrame implements PropertyChangeListener {
     }
 
     private void updateMapGrids() {
-        int rows = gameState.N;
-        int cols = gameState.N;
-        for(int i=0; i<rows; i++) {
-            for(int j=0; j<cols; j++) {
-                int pos = i*rows + j;
+        int row_count = gameState.N;
+        int col_count = gameState.N;
+        for(int i=0; i<row_count; i++) {
+            for(int j=0; j<col_count; j++) {
+                int pos = i * row_count + j;
                 Color backgroundColor = Color.white;
-                StringBuilder cell = new StringBuilder();
+                StringBuilder cell_sb = new StringBuilder();
                 if(gameState.getTreasurePositions().contains(pos)) {
                     backgroundColor = Color.yellow;
+                    cell_sb.append('*');
                 }
                 for (Map.Entry<String, GameState.PlayerState> entry : gameState.getPlayerStates().entrySet()) {
                     if(entry.getValue().position == pos) {
-                    	cell.append(entry.getKey());
+                    	cell_sb.append(entry.getKey());
                         if(entry.getKey().equals(playerName)) {
-                        	backgroundColor = Color.green;
+                        	backgroundColor = Color.pink;
                         }
-                        // can break because we cannot have two players in the same cell
                         break;
                     }
                 }
-            	mapGrids[i][j].setText(cell.toString());
-                mapGrids[i][j].setBackground(backgroundColor);
+            	grids[i][j].setText(cell_sb.toString());
+                grids[i][j].setBackground(backgroundColor);
             }
         }
     }
@@ -64,28 +64,26 @@ public class GUI extends JFrame implements PropertyChangeListener {
 
         // Player Info
         Panel legend = new Panel(new GridLayout(2, 1));
-        infoLabel = new JLabel();
-        updateInfoLabel();
-        infoLabel.setBorder(BorderFactory.createLineBorder(Color.black));
-        infoLabel.setSize(400, 768);
-        legend.add(infoLabel);
+        playerLabel = new JLabel();
+        updateplayerLabel();
+//        playerLabel.setSize(400, 700);
+        legend.add(playerLabel);
 
         // Server Info
         serverLabel = new JLabel();
         updateServerLabel();
-        serverLabel.setBorder(BorderFactory.createLineBorder(Color.black));
-        serverLabel.setSize(400, 768);
+//        serverLabel.setSize(400, 700);
         legend.add(serverLabel);
 
         // Map
         Panel map = new Panel(new GridLayout(rows, cols));
-        mapGrids = new JLabel[rows][cols];
+        grids = new JLabel[rows][cols];
         for(int i=0; i<rows; i++) {
             for (int j = 0; j < cols; j++) {
-            	mapGrids[i][j] = new JLabel();
-            	mapGrids[i][j].setOpaque(true);
-                mapGrids[i][j].setBorder(BorderFactory.createLineBorder(Color.black));
-            	map.add(mapGrids[i][j]);
+            	grids[i][j] = new JLabel();
+            	grids[i][j].setOpaque(true);
+                grids[i][j].setBorder(BorderFactory.createLineBorder(Color.black));
+            	map.add(grids[i][j]);
             }
         }
         updateMapGrids();
@@ -98,7 +96,7 @@ public class GUI extends JFrame implements PropertyChangeListener {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                System.out.println("Terminating ...");
+                System.out.println("Closing...");
                 System.exit(0);
             }
         });
@@ -106,7 +104,7 @@ public class GUI extends JFrame implements PropertyChangeListener {
 
     public void propertyChange(PropertyChangeEvent event) {
         gameState = (GameState) event.getNewValue();
-        updateInfoLabel();
+        updateplayerLabel();
         updateServerLabel();
         updateMapGrids();
     }

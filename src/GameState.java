@@ -25,11 +25,7 @@ public class GameState implements Serializable  {
 	public String getBackupName(){ return backupName;}
 
 	public void initPlayerState(String playerName) {
-		playerStates.put(playerName, new PlayerState(randValidPosition()));
-	}
-
-	public void updatePlayerState(String playerName, GameState.PlayerState state) {
-		playerStates.put(playerName, state);
+		playerStates.put(playerName, new PlayerState(randPosition()));
 	}
 
 	public Set<Integer> getTreasurePositions(){
@@ -60,11 +56,12 @@ public class GameState implements Serializable  {
 		}
 	}
 
-	public void removeTreasures(int position){
-		treasurePositions.remove(position);
+	public void removeTreasures(int pos){
+		treasurePositions.remove(pos);
 	}
 
-	private int randValidPosition() {
+	private int randPosition() {
+		// positions that do not have treature or player
 		Set<Integer> disallowedPositions = new HashSet<>(treasurePositions);
 		for (Map.Entry<String, GameState.PlayerState> entry : playerStates.entrySet()) {
 			disallowedPositions.add(entry.getValue().position);

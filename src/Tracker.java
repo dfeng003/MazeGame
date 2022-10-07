@@ -58,24 +58,9 @@ public class Tracker extends UnicastRemoteObject implements TrackerService {
 	}
 
 	@Override
-	public boolean removePlayer(String playerID) throws RemoteException {
-		boolean status = false;
-
-		System.out.println(LocalDateTime.now() + "removing player from tracker: " + playerID);
-
-		for(PlayerInfo pInfo : playerList) {
-			if(pInfo.getPlayerID().equals(playerID)) {
-				playerList.remove(pInfo);
-				status = true;
-				break;
-			}
-		}
-		return status;
-	}
-
-	@Override
 	public PlayerInfo handleCrashedPlayer(String playerID) throws RemoteException {
-		System.out.println(LocalDateTime.now() + "removing crashed player from tracker: " + playerID);
+		// used by both crashed player and normal exit
+		System.out.println(LocalDateTime.now() + "removing player from tracker: " + playerID);
 		for (int i = 0; i < playerList.size(); i ++) {
 			if (playerList.get(i).getPlayerID().equals(playerID)){
 				playerList.remove(i);
