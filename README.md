@@ -8,4 +8,4 @@
 (for mac, you need to go to the \src\classes directory first)
 7. open another commend prompt, run Game: `java Game <TrackerIP> 1099 <PlayerID2>`- this is assigned as backup server
 (for mac, you need to go to the \src\classes directory first)
-8. To run the stressTest, instead of 6-7, run: `java StressTest.java <TrackerIP> 1099 "java Game"`
+8. To run the stressTest, instead of 6-7, run: `java StressTest.java <TrackerIP> 1099 "java Game"`(for mac, you need to go to the \src\classes directory first)
